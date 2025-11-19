@@ -1,98 +1,233 @@
-# AWS Cost Report - Costos por Etiqueta Name
+# AWS Cost Report V2 - Análisis Detallado de Costos
 
-Script de Python para extraer y analizar costos de AWS organizados por la etiqueta "Name". Incluye todos los servicios (EC2, S3, RDS, VPC, etc.) y costos específicos de AWS Backup.
+Script de Python para extraer y analizar costos de AWS con **desglose completo de EC2** y máxima claridad. Sin categorías genéricas "Others", todo perfectamente identificado.
+
+## 🎯 Características Principales
+
+### ✅ Agrupación por Etiqueta Name
+- Cada recurso AWS identificado por su etiqueta **Name**
+- Totales y detalles organizados por recurso
+
+### 📋 ServerGroup Informativo
+- Muestra la etiqueta **ServerGroup** como información adicional
+- Útil para contexto y clasificación visual
+- No afecta la agrupación de costos
+
+### 🔍 Desglose Completo de EC2
+**Sin "Others" genéricos** - Todo identificado específicamente:
+- **Instancias:** `EC2 - Instancia (t3.large)`, `EC2 - Instancia (t2.micro)`
+- **Volúmenes:** `EC2 - EBS Volumes (gp3)`, `EC2 - EBS Volumes (gp2)`, `EC2 - EBS Volumes (io1/io2)`
+- **Red:** `EC2 - Network Interfaces (ENI)`, `EC2 - Elastic IPs`, `EC2 - Data Transfer (Out)`
+- **Snapshots:** `EC2 - EBS Snapshots`
+- **NAT Gateway:** `EC2 - NAT Gateway (Hours)`, `EC2 - NAT Gateway (Data Processed)`
+- **Load Balancers:** `EC2 - Load Balancer (ALB)`, `EC2 - Load Balancer (NLB)`
+- **Otros:** VPN, CloudWatch, IOPS, Throughput, etc.
+
+### 💾 AWS Backup Automático
+- Se asocia automáticamente por etiqueta **Name**
+- **NO requiere** etiquetas adicionales como `avanza_backup_xxx`
+- Aparece como "AWS Backup" en el desglose
+
+---
 
 ## 📋 Requisitos
 
-- Python 3.7 o superior
-- Credenciales de AWS configuradas
-- Permisos IAM necesarios:
-  - `ce:GetCostAndUsage`
-  - `ce:GetTags`
+- **Python:** 3.7 o superior
+- **AWS CLI:** Configurado con credenciales válidas
+- **Permisos IAM:** `ce:GetCostAndUsage` y `ce:GetTags`
+
+---
 
 ## 🚀 Instalación
 
-1. Instalar las dependencias:
+### 1. Instalar dependencias
+
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Configurar credenciales de AWS (si no lo has hecho):
+### 2. Configurar AWS (si no está configurado)
+
 ```bash
 aws configure
 ```
 
+Ingresa:
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region: `us-east-1`
+- Default output format: `json`
+
+### 3. Aplicar política IAM
+
+Asigna la política en `iam_policy.json` a tu usuario/rol de AWS.
+
+---
+
 ## 💻 Uso
 
-### Ejemplos básicos:
+### Ejemplos Básicos
 
-**Obtener costos del mes actual:**
 ```bash
+# Costos del mes actual
 python aws_cost_report.py
-```
 
-**Obtener costos de un mes específico:**
-```bash
+# Costos de un mes específico
 python aws_cost_report.py --mes 10 --anio 2024
+
+# Con nombre de archivo personalizado
+python aws_cost_report.py --output costos_octubre_2024.xlsx
+
+# Usando un perfil específico de AWS
+python aws_cost_report.py --profile produccion
+
+# Combinando parámetros
+python aws_cost_report.py --mes 11 --anio 2024 --output nov_2024.xlsx --profile prod
 ```
 
-**Especificar nombre de archivo de salida:**
-```bash
-python aws_cost_report.py --mes 11 --anio 2024 --output costos_noviembre_2024.xlsx
-```
-
-**Usar un perfil específico de AWS:**
-```bash
-python aws_cost_report.py --profile mi-perfil --mes 1 --anio 2025
-```
-
-**Cambiar región:**
-```bash
-python aws_cost_report.py --region eu-west-1
-```
-
-### Parámetros disponibles:
+### Parámetros Disponibles
 
 | Parámetro | Descripción | Ejemplo |
 |-----------|-------------|---------|
 | `--mes` | Mes a consultar (1-12) | `--mes 10` |
 | `--anio` | Año a consultar | `--anio 2024` |
-| `--output` | Nombre del archivo Excel | `--output costos.xlsx` |
+| `--output` | Nombre del archivo Excel | `--output mis_costos.xlsx` |
 | `--profile` | Perfil de AWS CLI | `--profile produccion` |
 | `--region` | Región de AWS | `--region us-east-1` |
 
-## 📊 Salida
+---
 
-El script genera un archivo Excel con dos hojas:
+## 📊 Salida - Excel con 3 Hojas
 
-### 1. Costos por Etiqueta
-Detalle completo de costos organizados por etiqueta Name y servicio:
-- Agrupación por etiqueta Name
-- Total por recurso (resaltado en amarillo)
-- Desglose por cada servicio de AWS
-- Costos de AWS Backup asociados a cada plan
+### Hoja 1: Detalle de Costos
 
-### 2. Resumen
-Vista consolidada con:
-- Periodo consultado
-- Total por etiqueta Name (ordenado de mayor a menor)
-- Costo total general (resaltado en naranja)
+Vista completa con cada recurso y su desglose de servicios:
 
-## 🔄 AWS Backup
+| Name | ServerGroup | Servicio | Costo (US$) |
+|------|-------------|----------|-------------|
+| produccion.avanza20rl | PRL | *** TOTAL *** | 834.28 |
+| | | EC2 - Instancia (t3.large) | 350.50 |
+| | | EC2 - Instancia (t3.medium) | 112.15 |
+| | | EC2 - Data Transfer (Out) | 142.97 |
+| | | EC2 - EBS Volumes (gp3) | 85.00 |
+| | | EC2 - Network Interfaces (ENI) | 25.00 |
+| | | EC2 - EBS Snapshots | 14.30 |
+| | | AWS Backup | 41.26 |
+| | | Amazon S3 | 18.11 |
+| | | Amazon VPC | 3.72 |
 
-El script identifica automáticamente los costos de AWS Backup basándose en:
+**Características:**
+- ✅ Fila de total por recurso (amarillo claro)
+- ✅ Servicios ordenados por costo (mayor a menor)
+- ✅ EC2 completamente desglosado
+- ✅ Sin "Others" genéricos
 
-| Etiqueta AWSBackup | Plan de Backup |
-|-------------------|----------------|
-| `BackupDia` | avanza_backup_daily |
-| `BackupSemana` | avanza_backup_weekly |
-| `BackupMes` | avanza-backup-monthly |
+### Hoja 2: Resumen
 
-Los costos de backup se asocian a la etiqueta Name del recurso respaldado.
+Vista consolidada ordenada por costo total:
 
-## 🔐 Permisos IAM necesarios
+| Name | ServerGroup | Costo Total (US$) |
+|------|-------------|-------------------|
+| produccion.avanza20rl | PRL | 834.28 |
+| app-desarrollo | WebServers | 125.50 |
+| vpc-principal | Network | 45.80 |
+| ... | ... | ... |
+| ***** TOTAL GENERAL ***** | | **1,234.56** |
 
-Crear una política con estos permisos:
+**Características:**
+- ✅ Totales por recurso
+- ✅ Ordenado de mayor a menor costo
+- ✅ Total general (naranja)
+
+### Hoja 3: Por ServerGroup
+
+Análisis agregado por grupo de servidores:
+
+| ServerGroup | Costo Total (US$) |
+|-------------|-------------------|
+| PRL | 834.28 |
+| WebServers | 210.80 |
+| Network | 45.80 |
+| Sin ServerGroup | 143.68 |
+
+**Características:**
+- ✅ Suma de costos por ServerGroup
+- ✅ Incluye "Sin ServerGroup" para recursos sin esa etiqueta
+- ✅ Encabezado azul
+
+---
+
+## 🏷️ Etiquetas Requeridas
+
+### Name (Requerida)
+- **Propósito:** Identificar cada recurso
+- **Ejemplos:** `servidor-web-prod`, `db-produccion`, `vpc-principal`
+- **Importante:** Sin esta etiqueta, los recursos aparecen como "Sin etiqueta"
+
+### ServerGroup (Opcional)
+- **Propósito:** Agrupar recursos por función o tipo
+- **Ejemplos:** `WebServers`, `Database`, `Network`, `Storage`
+- **Nota:** Solo informativa, no afecta la agrupación de costos
+
+---
+
+## 🔍 Desglose de EC2 Detallado
+
+El script categoriza automáticamente todos los componentes de EC2:
+
+### Instancias y Compute
+- `EC2 - Instancia (tipo)` - Con tipo específico (t3.large, t2.micro, etc.)
+- `EC2 - Spot Instances` - Instancias Spot
+- `EC2 - Reserved Instances` - Instancias reservadas
+
+### Almacenamiento EBS
+- `EC2 - EBS Volumes (gp3)` - SSD propósito general
+- `EC2 - EBS Volumes (gp2)` - SSD propósito general anterior
+- `EC2 - EBS Volumes (io1/io2)` - SSD alto rendimiento
+- `EC2 - EBS Volumes (st1)` - HDD throughput optimizado
+- `EC2 - EBS Volumes (sc1)` - HDD cold storage
+- `EC2 - EBS Snapshots` - Copias de seguridad
+- `EC2 - EBS IOPS` - IOPS provisionadas
+- `EC2 - EBS Throughput` - Throughput provisionado
+
+### Red
+- `EC2 - Network Interfaces (ENI)` - Interfaces de red elásticas
+- `EC2 - Elastic IPs` - Direcciones IP elásticas
+- `EC2 - Data Transfer (Out)` - Transferencia de datos saliente
+- `EC2 - Data Transfer (Regional/In)` - Transferencia regional o entrante
+
+### Infraestructura
+- `EC2 - NAT Gateway (Hours)` - Horas de NAT Gateway
+- `EC2 - NAT Gateway (Data Processed)` - Datos procesados por NAT
+- `EC2 - Load Balancer (ALB)` - Application Load Balancer
+- `EC2 - Load Balancer (NLB)` - Network Load Balancer
+- `EC2 - VPN Connection` - Conexión VPN
+
+### Otros
+- `EC2 - CloudWatch Monitoring` - Monitoreo detallado
+- `EC2 - EBS Optimized` - Instancias optimizadas para EBS
+
+---
+
+## 💾 AWS Backup
+
+El script detecta automáticamente los costos de AWS Backup asociados a cada recurso:
+
+- **Detección:** Por etiqueta **Name**
+- **NO requiere:** Etiquetas adicionales (`avanza_backup_daily`, etc.)
+- **Aparece como:** "AWS Backup" en el desglose de servicios
+
+---
+
+## ⏱️ Rendimiento
+
+- **Consultas a AWS:** 5-6 consultas a Cost Explorer
+- **Tiempo de ejecución:** ~30-40 segundos
+- **Costo AWS:** ~$0.05-0.06 USD por ejecución ($0.01 por consulta)
+
+---
+
+## 🔐 Permisos IAM Necesarios
 
 ```json
 {
@@ -110,44 +245,76 @@ Crear una política con estos permisos:
 }
 ```
 
-## 📝 Notas importantes
+Ver archivo `iam_policy.json` incluido.
 
-1. **Etiquetas Name**: Los recursos deben tener la etiqueta "Name" para aparecer correctamente agrupados
-2. **Recursos sin etiqueta**: Los recursos sin la etiqueta Name aparecerán como "Sin etiqueta"
-3. **Moneda**: Todos los costos se muestran en dólares estadounidenses (US$)
-4. **Delay de AWS**: Los costos pueden tardar hasta 24 horas en aparecer en Cost Explorer
-5. **Región**: Cost Explorer es un servicio global, pero se accede desde us-east-1
+---
 
-## 🐛 Solución de problemas
+## 📝 Ejemplo de Salida en Consola
 
-### Error: "Unable to locate credentials"
-```bash
-aws configure
-# O especificar perfil:
-export AWS_PROFILE=mi-perfil
+```
+======================================================================
+AWS COST REPORT - Desglose Completo por Name
+======================================================================
+✅ Conectado a AWS (us-east-1)
+📊 Obteniendo costos base por Name y Servicio...
+🏷️  Obteniendo etiquetas ServerGroup...
+🔍 Desglosando EC2 en detalle...
+   → Amazon Elastic Compute Cloud - Compute
+   → EC2 - Other
+   → Amazon Elastic Block Store
+💾 Obteniendo costos de AWS Backup...
+⚙️  Procesando datos...
+📝 Creando Excel...
+
+✅ Excel creado: aws_costos_detallados.xlsx
+💰 Costo total: $1,234.56 USD
+📊 Recursos: 15
+======================================================================
+✨ Completado exitosamente
+======================================================================
 ```
 
-### Error: "Access Denied"
-Verificar que el usuario/rol tiene permisos `ce:GetCostAndUsage`
+---
 
-### No aparecen costos de AWS Backup
-- Verificar que los recursos tengan la etiqueta `AWSBackup` con valores: BackupDia, BackupSemana o BackupMes
-- Los planes de backup deben estar activos y respaldando recursos
+## 💡 Casos de Uso
 
-### Los costos no coinciden con Cost Explorer
-- Asegurarse de usar el mismo periodo de tiempo
-- Los costos son "UnblendedCost" (sin descuentos de RI/Savings Plans)
+### 1. Análisis Mensual de Costos
+```bash
+python aws_cost_report.py --mes 10 --anio 2024 --output octubre_2024.xlsx
+```
+
+### 2. Comparación Mes a Mes
+```bash
+python aws_cost_report.py --mes 9 --anio 2024 --output sep_2024.xlsx
+python aws_cost_report.py --mes 10 --anio 2024 --output oct_2024.xlsx
+python aws_cost_report.py --mes 11 --anio 2024 --output nov_2024.xlsx
+```
+
+### 3. Auditoría por Recurso
+Abre el Excel y revisa la hoja "Detalle de Costos" para ver el desglose completo de cada recurso.
+
+### 4. Optimización de Costos EC2
+Identifica componentes costosos:
+- ¿Muchos snapshots? → Implementa lifecycle policies
+- ¿Alto Data Transfer? → Considera CloudFront
+- ¿EBS caro? → Cambia de gp2 a gp3
+- ¿Network Interfaces sin usar? → Elimínalas
+
+---
 
 ## 📧 Soporte
 
-Para problemas o preguntas, contactar al equipo de DevOps o Cloud.
+Para problemas o preguntas, contacta a tu equipo de DevOps o Cloud.
 
-## 🔄 Actualizaciones
+---
 
-**Versión 1.0** - Características:
-- ✅ Costos por etiqueta Name
-- ✅ Todos los servicios de AWS
-- ✅ Integración con AWS Backup
-- ✅ Exportación a Excel con formato
-- ✅ Hoja de resumen
-- ✅ Soporte para periodos personalizados
+## 📄 Licencia
+
+Script interno para gestión de costos AWS.
+
+---
+
+**Desarrollado para:** Máxima claridad y detalle en costos AWS  
+**Versión:** 2.0  
+**Fecha:** Noviembre 2024  
+**Compatible con:** Todos los servicios de AWS
