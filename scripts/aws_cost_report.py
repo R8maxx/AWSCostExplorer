@@ -364,67 +364,6 @@ def diagnosticar_ec2(costos_base, desglose_ec2):
         print(f"✅ Desglose EC2 completo y correcto")
 
     return total_ec2_base, total_ec2_desglose
-    """Diagnostica diferencias entre costos base de EC2 y desglose"""
-    print("\n🔍 DIAGNÓSTICO DETALLADO DE EC2:")
-    print("-" * 70)
-
-    servicios_ec2 = [
-        'Amazon Elastic Compute Cloud - Compute',
-        'EC2 - Other',
-        'Amazon Elastic Block Store'
-    ]
-
-    # Total EC2 en costos_base
-    total_ec2_base = 0
-    ec2_por_name = defaultdict(float)
-    ec2_por_servicio = defaultdict(float)
-
-    for name, servicios in costos_base.items():
-        for servicio in servicios_ec2:
-            if servicio in servicios:
-                costo = servicios[servicio]
-                total_ec2_base += costo
-                ec2_por_name[name] += costo
-                ec2_por_servicio[servicio] += costo
-
-    # Total EC2 en desglose
-    total_ec2_desglose = sum(sum(cats.values()) for cats in desglose_ec2.values())
-
-    print(f"Total EC2 en costos_base: ${total_ec2_base:,.2f}")
-    for servicio in servicios_ec2:
-        print(f"  - {servicio}: ${ec2_por_servicio[servicio]:,.2f}")
-
-    print(f"\nTotal EC2 en desglose: ${total_ec2_desglose:,.2f}")
-    diferencia = total_ec2_base - total_ec2_desglose
-    print(f"Diferencia: ${diferencia:,.2f}")
-
-    if abs(diferencia) > 0.01:
-        print(f"\n⚠️  ¡PÉRDIDA DE ${abs(diferencia):,.2f} EN EL DESGLOSE!")
-
-        # Names que tienen EC2 en base pero NO en desglose
-        names_solo_base = set(ec2_por_name.keys()) - set(desglose_ec2.keys())
-        if names_solo_base:
-            total_perdido = sum(ec2_por_name[n] for n in names_solo_base)
-            print(f"\n⚠️  Names con EC2 en base pero SIN desglose ({len(names_solo_base)}):")
-            print(f"    Total perdido: ${total_perdido:,.2f}")
-            for name in sorted(names_solo_base, key=lambda x: ec2_por_name[x], reverse=True)[:5]:
-                print(f"  - {name}: ${ec2_por_name[name]:,.2f}")
-
-        # Comparar totales por Name
-        print(f"\n📊 Mayores diferencias por Name:")
-        diferencias = []
-        for name in set(ec2_por_name.keys()) | set(desglose_ec2.keys()):
-            base = ec2_por_name[name]
-            desg = sum(desglose_ec2.get(name, {}).values())
-            if abs(base - desg) > 0.01:
-                diferencias.append((name, base, desg, base - desg))
-
-        for name, base, desg, diff in sorted(diferencias, key=lambda x: abs(x[3]), reverse=True)[:5]:
-            print(f"  {name}: Base=${base:.2f}, Desglose=${desg:.2f}, Diff=${diff:.2f}")
-    else:
-        print(f"✅ Desglose EC2 completo y correcto")
-
-    return total_ec2_base, total_ec2_desglose
 
 
 def procesar_datos(costos_base, desglose_ec2, backup_costs, servergroups):
