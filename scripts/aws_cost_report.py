@@ -621,7 +621,7 @@ def main():
         sys.exit(1)
 
     print("=" * 70)
-    print("AWS COST REPORT - Desglose Completo por Name (CORREGIDO)")
+    print("AWS COST REPORT - Desglose Completo por Name")
     print("=" * 70)
 
     # Obtener fechas
