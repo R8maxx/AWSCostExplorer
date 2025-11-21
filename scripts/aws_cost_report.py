@@ -422,11 +422,48 @@ def procesar_datos(costos_base, desglose_ec2, backup_costs, servergroups):
     return datos_finales
 
 
-def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
+def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False, porcentaje_descuento=5.0):
     """Crea el archivo Excel con los resultados"""
     print("\n📝 Creando Excel...")
 
+    # Calcular total general
+    costo_total = sum(sum(info['servicios'].values()) for info in datos.values())
+
+    # Calcular descuento si es partner
+    monto_descuento = 0
+    costo_con_descuento = costo_total
+    if es_partner:
+        monto_descuento = costo_total * (porcentaje_descuento / 100)
+        costo_con_descuento = costo_total - monto_descuento
+
     filas = []
+
+    # *** NUEVA SECCIÓN: TOTAL GENERAL AL INICIO ***
+    filas.append({
+        'Name': '*** TOTAL GENERAL ***',
+        'ServerGroup': '',
+        'Servicio': '',
+        'Costo (US$)': round(costo_total, 2)
+    })
+
+    # Si es partner, añadir línea de descuento
+    if es_partner:
+        filas.append({
+            'Name': f'Descuento Partner ({porcentaje_descuento}%)',
+            'ServerGroup': '',
+            'Servicio': '',
+            'Costo (US$)': round(-monto_descuento, 2)
+        })
+        filas.append({
+            'Name': '*** TOTAL CON DESCUENTO ***',
+            'ServerGroup': '',
+            'Servicio': '',
+            'Costo (US$)': round(costo_con_descuento, 2)
+        })
+
+    # Línea en blanco separadora
+    filas.append({'Name': '', 'ServerGroup': '', 'Servicio': '', 'Costo (US$)': ''})
+    filas.append({'Name': '', 'ServerGroup': '', 'Servicio': '', 'Costo (US$)': ''})
 
     # Ordenar por costo total descendente
     datos_ordenados = sorted(
@@ -461,9 +498,6 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
 
     df = pd.DataFrame(filas)
 
-    # Calcular total general
-    costo_total = sum(sum(info['servicios'].values()) for info in datos.values())
-
     with pd.ExcelWriter(nombre_archivo, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='Detalle de Costos', index=False)
 
@@ -480,10 +514,34 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
         from openpyxl.styles import Font, PatternFill
 
         fill_total = PatternFill(start_color='FFD966', end_color='FFD966', fill_type='solid')
+        fill_total_general = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
+        fill_descuento = PatternFill(start_color='90EE90', end_color='90EE90', fill_type='solid')  # Verde claro
+        fill_total_descuento = PatternFill(start_color='32CD32', end_color='32CD32', fill_type='solid')  # Verde lima
         font_bold = Font(bold=True, size=11)
+        font_bold_large = Font(bold=True, size=12)
 
-        for row in worksheet.iter_rows(min_row=2, max_row=worksheet.max_row):
-            if row[2].value == '*** TOTAL ***':
+        # Formatear filas
+        for idx, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row), start=2):
+            cell_value = row[0].value or ''
+            servicio_value = row[2].value or ''
+
+            # Total general al inicio
+            if cell_value == '*** TOTAL GENERAL ***':
+                for cell in row:
+                    cell.fill = fill_total_general
+                    cell.font = font_bold_large
+            # Línea de descuento (en verde)
+            elif 'Descuento Partner' in str(cell_value):
+                for cell in row:
+                    cell.fill = fill_descuento
+                    cell.font = font_bold_large
+            # Total con descuento (en verde más fuerte)
+            elif cell_value == '*** TOTAL CON DESCUENTO ***':
+                for cell in row:
+                    cell.fill = fill_total_descuento
+                    cell.font = font_bold_large
+            # Totales de cada Name
+            elif servicio_value == '*** TOTAL ***':
                 for cell in row:
                     cell.fill = fill_total
                     cell.font = font_bold
@@ -492,15 +550,19 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
         resumen = [
             ['Periodo', f'{fecha_inicio} a {fecha_fin}'],
             [''],
-            ['Name', 'ServerGroup', 'Costo Total (US$)']
+            ['TOTAL GENERAL', '', round(costo_total, 2)]
         ]
+
+        if es_partner:
+            resumen.append([f'Descuento Partner ({porcentaje_descuento}%)', '', round(-monto_descuento, 2)])
+            resumen.append(['TOTAL CON DESCUENTO', '', round(costo_con_descuento, 2)])
+
+        resumen.append([''])
+        resumen.append(['Name', 'ServerGroup', 'Costo Total (US$)'])
 
         for name, info in datos_ordenados:
             total = sum(info['servicios'].values())
             resumen.append([name, info['servergroup'], round(total, 2)])
-
-        resumen.append([''])
-        resumen.append(['*** TOTAL GENERAL ***', '', round(costo_total, 2)])
 
         df_resumen = pd.DataFrame(resumen)
         df_resumen.to_excel(writer, sheet_name='Resumen', index=False, header=False)
@@ -510,11 +572,21 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
         ws_resumen.column_dimensions['B'].width = 25
         ws_resumen.column_dimensions['C'].width = 20
 
-        # Formato total general
-        last_row = len(resumen) + 1
-        for cell in ws_resumen[last_row]:
-            cell.fill = PatternFill(start_color='FFA500', end_color='FFA500', fill_type='solid')
-            cell.font = Font(bold=True, size=12)
+        # Formato en resumen
+        # Total general
+        for cell in ws_resumen[3]:
+            cell.fill = fill_total_general
+            cell.font = font_bold_large
+
+        if es_partner:
+            # Descuento
+            for cell in ws_resumen[4]:
+                cell.fill = fill_descuento
+                cell.font = font_bold_large
+            # Total con descuento
+            for cell in ws_resumen[5]:
+                cell.fill = fill_total_descuento
+                cell.font = font_bold_large
 
         # Hoja por ServerGroup
         if any(info['servergroup'] for info in datos.values()):
@@ -540,6 +612,9 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo):
 
     print(f"\n✅ Excel creado: {nombre_archivo}")
     print(f"💰 Costo total: ${costo_total:,.2f} USD")
+    if es_partner:
+        print(f"💚 Descuento ({porcentaje_descuento}%): ${monto_descuento:,.2f} USD")
+        print(f"💰 Total con descuento: ${costo_con_descuento:,.2f} USD")
     print(f"📊 Recursos: {len(datos)}")
 
     return nombre_archivo
@@ -552,6 +627,8 @@ def main():
     parser.add_argument('--output', type=str, default='aws_costos_detallados.xlsx', help='Archivo de salida')
     parser.add_argument('--profile', type=str, help='Perfil AWS')
     parser.add_argument('--region', type=str, default='eu-west-1', help='Región AWS')
+    parser.add_argument('--partner', action='store_true', help='Aplicar descuento de partner')
+    parser.add_argument('--descuento', type=float, default=5.0, help='Porcentaje de descuento (default: 5.0)')
 
     args = parser.parse_args()
 
@@ -561,6 +638,8 @@ def main():
 
     print("=" * 70)
     print("AWS COST REPORT - Desglose Completo por Name")
+    if args.partner:
+        print(f"🤝 Modo Partner activado - Descuento: {args.descuento}%")
     print("=" * 70)
 
     # Obtener fechas
@@ -627,8 +706,8 @@ def main():
         print(f"   ⚠️  Diferencia: ${diferencia_final:,.2f}")
     print("=" * 70)
 
-    # Crear Excel
-    crear_excel(datos, fecha_inicio, fecha_fin, args.output)
+    # Crear Excel con información de partner
+    crear_excel(datos, fecha_inicio, fecha_fin, args.output, args.partner, args.descuento)
 
     print("=" * 70)
     print("✨ Completado exitosamente")
