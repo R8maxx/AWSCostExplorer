@@ -63,37 +63,6 @@ def obtener_costos_base(cliente_ce, fecha_inicio, fecha_fin):
         sys.exit(1)
 
 
-def obtener_servergroup(cliente_ce, fecha_inicio, fecha_fin):
-    """Obtiene la etiqueta ServerGroup para cada Name"""
-    print("🏷️  Obteniendo etiquetas ServerGroup...")
-
-    servergroups = {}
-    try:
-        response = cliente_ce.get_cost_and_usage(
-            TimePeriod={'Start': fecha_inicio, 'End': fecha_fin},
-            Granularity='MONTHLY',
-            Metrics=['UnblendedCost'],
-            GroupBy=[
-                {'Type': 'TAG', 'Key': 'Name'},
-                {'Type': 'TAG', 'Key': 'ServerGroup'}
-            ]
-        )
-
-        for periodo in response['ResultsByTime']:
-            for grupo in periodo['Groups']:
-                name = grupo['Keys'][0].replace('Name$', '') if grupo['Keys'][0] != 'Name$' else ''
-                sg = grupo['Keys'][1].replace('ServerGroup$', '') if len(grupo['Keys']) > 1 and grupo['Keys'][
-                    1] != 'ServerGroup$' else ''
-
-                if name and name != 'Sin etiqueta' and sg:
-                    servergroups[name] = sg
-
-        return servergroups
-    except Exception as e:
-        print(f"⚠️  Advertencia ServerGroup: {e}")
-        return {}
-
-
 def obtener_desglose_ec2_completo(cliente_ce, fecha_inicio, fecha_fin, names_con_ec2):
     """Obtiene el desglose COMPLETO de EC2 por Usage Type - SOLO para Names que ya tienen EC2"""
     print("🔍 Desglosando EC2 en detalle...")
@@ -366,11 +335,11 @@ def diagnosticar_ec2(costos_base, desglose_ec2):
     return total_ec2_base, total_ec2_desglose
 
 
-def procesar_datos(costos_base, desglose_ec2, backup_costs, servergroups):
+def procesar_datos(costos_base, desglose_ec2, backup_costs):
     """Procesa y combina todos los datos SIN DUPLICACIONES"""
     print("\n⚙️  Procesando datos...")
 
-    datos_finales = defaultdict(lambda: {'servergroup': '', 'servicios': defaultdict(float)})
+    datos_finales = defaultdict(lambda: {'servicios': defaultdict(float)})
 
     # Servicios EC2 que serán reemplazados por el desglose
     servicios_ec2_a_reemplazar = {
@@ -380,9 +349,6 @@ def procesar_datos(costos_base, desglose_ec2, backup_costs, servergroups):
     }
 
     for name, servicios in costos_base.items():
-        # Agregar ServerGroup
-        datos_finales[name]['servergroup'] = servergroups.get(name, '')
-
         # Agregar servicios
         for servicio, costo in servicios.items():
             # ✅ CORRECCIÓN 1: Excluir AWS Backup si ya lo tenemos por separado
@@ -441,7 +407,6 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
     # *** NUEVA SECCIÓN: TOTAL GENERAL AL INICIO ***
     filas.append({
         'Name': '*** TOTAL GENERAL ***',
-        'ServerGroup': '',
         'Servicio': '',
         'Costo (US$)': round(costo_total, 2)
     })
@@ -450,20 +415,18 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
     if es_partner:
         filas.append({
             'Name': f'Descuento Partner ({porcentaje_descuento}%)',
-            'ServerGroup': '',
             'Servicio': '',
             'Costo (US$)': round(-monto_descuento, 2)
         })
         filas.append({
             'Name': '*** TOTAL CON DESCUENTO ***',
-            'ServerGroup': '',
             'Servicio': '',
             'Costo (US$)': round(costo_con_descuento, 2)
         })
 
     # Línea en blanco separadora
-    filas.append({'Name': '', 'ServerGroup': '', 'Servicio': '', 'Costo (US$)': ''})
-    filas.append({'Name': '', 'ServerGroup': '', 'Servicio': '', 'Costo (US$)': ''})
+    filas.append({'Name': '', 'Servicio': '', 'Costo (US$)': ''})
+    filas.append({'Name': '', 'Servicio': '', 'Costo (US$)': ''})
 
     # Ordenar por costo total descendente
     datos_ordenados = sorted(
@@ -474,12 +437,10 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
 
     for name, info in datos_ordenados:
         total = sum(info['servicios'].values())
-        servergroup = info['servergroup']
 
         # Fila de total
         filas.append({
             'Name': name,
-            'ServerGroup': servergroup,
             'Servicio': '*** TOTAL ***',
             'Costo (US$)': round(total, 2)
         })
@@ -488,13 +449,12 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
         for servicio, costo in sorted(info['servicios'].items(), key=lambda x: x[1], reverse=True):
             filas.append({
                 'Name': '',
-                'ServerGroup': '',
                 'Servicio': servicio,
                 'Costo (US$)': round(costo, 2)
             })
 
         # Línea en blanco
-        filas.append({'Name': '', 'ServerGroup': '', 'Servicio': '', 'Costo (US$)': ''})
+        filas.append({'Name': '', 'Servicio': '', 'Costo (US$)': ''})
 
     df = pd.DataFrame(filas)
 
@@ -506,9 +466,8 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
 
         # Ajustar anchos
         worksheet.column_dimensions['A'].width = 40
-        worksheet.column_dimensions['B'].width = 25
-        worksheet.column_dimensions['C'].width = 55
-        worksheet.column_dimensions['D'].width = 15
+        worksheet.column_dimensions['B'].width = 55
+        worksheet.column_dimensions['C'].width = 15
 
         # Formato
         from openpyxl.styles import Font, PatternFill
@@ -523,7 +482,7 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
         # Formatear filas
         for idx, row in enumerate(worksheet.iter_rows(min_row=2, max_row=worksheet.max_row), start=2):
             cell_value = row[0].value or ''
-            servicio_value = row[2].value or ''
+            servicio_value = row[1].value or ''
 
             # Total general al inicio
             if cell_value == '*** TOTAL GENERAL ***':
@@ -558,19 +517,18 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
             resumen.append(['TOTAL CON DESCUENTO', '', round(costo_con_descuento, 2)])
 
         resumen.append([''])
-        resumen.append(['Name', 'ServerGroup', 'Costo Total (US$)'])
+        resumen.append(['Name', 'Costo Total (US$)'])
 
         for name, info in datos_ordenados:
             total = sum(info['servicios'].values())
-            resumen.append([name, info['servergroup'], round(total, 2)])
+            resumen.append([name, round(total, 2)])
 
         df_resumen = pd.DataFrame(resumen)
         df_resumen.to_excel(writer, sheet_name='Resumen', index=False, header=False)
 
         ws_resumen = writer.sheets['Resumen']
         ws_resumen.column_dimensions['A'].width = 40
-        ws_resumen.column_dimensions['B'].width = 25
-        ws_resumen.column_dimensions['C'].width = 20
+        ws_resumen.column_dimensions['B'].width = 20
 
         # Formato en resumen
         # Total general
@@ -587,28 +545,6 @@ def crear_excel(datos, fecha_inicio, fecha_fin, nombre_archivo, es_partner=False
             for cell in ws_resumen[5]:
                 cell.fill = fill_total_descuento
                 cell.font = font_bold_large
-
-        # Hoja por ServerGroup
-        if any(info['servergroup'] for info in datos.values()):
-            sg_totals = defaultdict(float)
-            for name, info in datos.items():
-                sg = info['servergroup'] if info['servergroup'] else 'Sin ServerGroup'
-                sg_totals[sg] += sum(info['servicios'].values())
-
-            sg_data = [['ServerGroup', 'Costo Total (US$)']]
-            for sg, total in sorted(sg_totals.items(), key=lambda x: x[1], reverse=True):
-                sg_data.append([sg, round(total, 2)])
-
-            df_sg = pd.DataFrame(sg_data[1:], columns=sg_data[0])
-            df_sg.to_excel(writer, sheet_name='Por ServerGroup', index=False)
-
-            ws_sg = writer.sheets['Por ServerGroup']
-            ws_sg.column_dimensions['A'].width = 35
-            ws_sg.column_dimensions['B'].width = 20
-
-            for cell in ws_sg[1]:
-                cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-                cell.font = Font(color='FFFFFF', bold=True)
 
     print(f"\n✅ Excel creado: {nombre_archivo}")
     print(f"💰 Costo total: ${costo_total:,.2f} USD")
@@ -660,7 +596,6 @@ def main():
 
     # Obtener datos
     costos_base = obtener_costos_base(ce, fecha_inicio, fecha_fin)
-    servergroups = obtener_servergroup(ce, fecha_inicio, fecha_fin)
 
     # ✅ Calcular qué Names tienen EC2 en costos_base (para limitar el desglose)
     servicios_ec2 = [
@@ -685,7 +620,7 @@ def main():
     diagnosticar_ec2(costos_base, desglose_ec2_normalizado)
 
     # Procesar
-    datos = procesar_datos(costos_base, desglose_ec2_normalizado, backup_costs, servergroups)
+    datos = procesar_datos(costos_base, desglose_ec2_normalizado, backup_costs)
 
     if not datos:
         print("\n⚠️  No se encontraron costos")
