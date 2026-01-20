@@ -98,9 +98,12 @@ def obtener_desglose_ec2_completo(cliente_ce, fecha_inicio, fecha_fin, names_con
 
                     # ✅ CRÍTICO: Solo agregar si este Name tiene EC2 en costos_base
                     # Esto evita capturar recursos sin etiqueta que AWS asocia automáticamente
-                    if costo > 0 and name in names_con_ec2:
-                        categoria = categorizar_usage_type(usage_type)
-                        desglose[name][categoria] += costo
+                    if name in names_con_ec2:
+                        # Incluir si tiene costo > 0 O si es una instancia EC2 (para visibilidad de Savings Plans/Reserved)
+                        es_instancia = 'boxusage' in usage_type.lower()
+                        if costo > 0 or es_instancia:
+                            categoria = categorizar_usage_type(usage_type)
+                            desglose[name][categoria] += costo
 
         except Exception as e:
             print(f"   ⚠️  {e}")
@@ -264,6 +267,15 @@ def normalizar_desglose_ec2(costos_base, desglose_ec2):
 
             if abs(factor - 1.0) > 0.01:
                 print(f"   ⚙️  {name}: factor={factor:.3f} (base=${total_base:.2f}, desglose=${total_desglose:.2f})")
+        elif total_desglose == 0 and len(desglose_ec2[name]) > 0:
+            # ✅ Caso especial: Instancias con costo $0 (Savings Plans/Reserved)
+            # Copiar las categorías sin normalizar (son $0 de todas formas)
+            for categoria, costo in desglose_ec2[name].items():
+                desglose_normalizado[name][categoria] = costo
+            # Mostrar qué instancias tienen $0
+            instancias_cero = [cat for cat in desglose_ec2[name].keys() if 'Instancia' in cat]
+            if instancias_cero:
+                print(f"   💰 {name}: {', '.join(instancias_cero)} (Savings Plan/Reserved - $0)")
         elif total_base > 0:
             # Hay costos en base pero no en desglose - mantener base sin desglosar
             print(f"   ⚠️  {name}: tiene EC2 en base (${total_base:.2f}) pero no en desglose")
@@ -384,6 +396,42 @@ def procesar_datos(costos_base, desglose_ec2, backup_costs):
         print(f"⚠️  Diferencia en procesamiento: ${abs(total_procesado - total_base):,.2f}")
     else:
         print(f"✅ Procesamiento correcto (diferencia: ${abs(total_procesado - total_base):.2f})")
+
+    # 🔍 DEBUG: Mostrar todos los servidores procesados
+    print("\n" + "=" * 70)
+    print("🔍 DEBUG: SERVIDORES EN datos_finales (lo que irá al Excel):")
+    print("-" * 70)
+    nombres_en_datos = set(datos_finales.keys())
+    nombres_en_base = set(costos_base.keys())
+
+    print(f"   Total servidores en costos_base: {len(nombres_en_base)}")
+    print(f"   Total servidores en datos_finales: {len(nombres_en_datos)}")
+
+    # Verificar si hay diferencias
+    faltantes = nombres_en_base - nombres_en_datos
+    extras = nombres_en_datos - nombres_en_base
+
+    if faltantes:
+        print(f"\n   ⚠️  SERVIDORES EN costos_base PERO NO EN datos_finales ({len(faltantes)}):")
+        for name in sorted(faltantes):
+            total = sum(costos_base[name].values())
+            print(f"      - {name}: ${total:.2f}")
+
+    if extras:
+        print(f"\n   ⚠️  SERVIDORES EN datos_finales PERO NO EN costos_base ({len(extras)}):")
+        for name in sorted(extras):
+            total = sum(datos_finales[name]['servicios'].values())
+            print(f"      - {name}: ${total:.2f}")
+
+    if not faltantes and not extras:
+        print("   ✅ Todos los servidores de costos_base están en datos_finales")
+
+    # Listar todos los servidores con sus totales
+    print(f"\n   📋 Lista completa de servidores en datos_finales:")
+    for name in sorted(nombres_en_datos):
+        total = sum(datos_finales[name]['servicios'].values())
+        print(f"      - {name}: ${total:.2f}")
+    print("=" * 70)
 
     return datos_finales
 
