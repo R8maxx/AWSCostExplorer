@@ -2,6 +2,12 @@
 
 Script de Python para extraer y analizar costos de AWS con **desglose completo de EC2** y máxima claridad. Sin categorías genéricas "Others", todo perfectamente identificado.
 
+> 📁 **Dos scripts disponibles** (ambos en `scripts/`):
+> - **`aws_cost_report.py`** — informe clásico agrupado por **Name** (una hoja de detalle + resumen). Documentado más abajo.
+> - **`aws_cost_report_por_servicio.py`** — informe con **una hoja por servicio**, EC2 desglosado, **filtros, gráficas, descripciones y colores fijos por servicio**. Ver [🎨 Informe por servicio](#-informe-por-servicio-aws_cost_report_por_serviciopy).
+>
+> Ambos comparten la lógica de extracción y desglose de EC2, y **reconcilian al céntimo con Cost Explorer**.
+
 ## 🎯 Características Principales
 
 ### ✅ Agrupación por Etiqueta Name
@@ -299,6 +305,75 @@ Identifica componentes costosos:
 - ¿Alto Data Transfer? → Considera CloudFront
 - ¿EBS caro? → Cambia de gp2 a gp3
 - ¿Network Interfaces sin usar? → Elimínalas
+
+---
+
+## 🎨 Informe por servicio (`aws_cost_report_por_servicio.py`)
+
+Variante del informe pensada para analizar el gasto **servicio a servicio**. Genera un
+Excel con **una pestaña por servicio de AWS**, con estilos, filtros y gráficas.
+
+Reutiliza las funciones de extracción y desglose EC2 de `aws_cost_report.py`, por lo que
+el total **reconcilia exactamente con Cost Explorer** (verificación incluida al ejecutar).
+
+### 📑 Estructura del Excel
+
+| Hoja | Contenido |
+|------|-----------|
+| **Resumen** | Total general (+ descuento partner opcional), tabla de coste por servicio, tabla Top 15 recursos por Name y **3 gráficas** (ver abajo) |
+| **EC2** | Fusiona *Compute + EC2-Other + EBS* y lo **desglosa por Usage Type y por Name** (misma lógica normalizada que el script clásico) |
+| **Una hoja por servicio principal** | S3, RDS, Backup, CloudWatch, VPC, ELB, Route 53, Bedrock... + cualquier servicio que supere el umbral de coste |
+| **Otros servicios** | Resto de servicios con coste bajo, agrupados |
+
+### 🔎 Filtros y navegación
+- **AutoFiltro** en la cabecera de cada hoja → busca/filtra por `Name` (o por `Servicio` en la hoja *Otros*).
+- **Paneles fijos** (freeze): la cabecera permanece visible al desplazarte.
+- En **EC2** y **Otros** el `Name`/`Servicio` se repite en cada fila, de modo que al filtrar por un recurso ves su subtotal (fila dorada `▸ TOTAL`) y todo su desglose.
+
+### 📊 Gráficas (hoja Resumen)
+1. **Barras** — coste por servicio (US$).
+2. **Tarta** — composición porcentual del gasto por servicio.
+3. **Barras** — Top 15 recursos por coste (Name).
+
+### 📝 Descripciones
+Cada hoja incluye, bajo el título, una **descripción en lenguaje llano del servicio**
+(qué es EC2, S3, RDS, Backup, CloudWatch, VPC, ELB, OpenSearch, Glacier, WAF, Impuestos...),
+para quien no conozca cada servicio. Los servicios sin ficha muestran un texto genérico.
+
+### 🎨 Estilos y colores
+- Tema visual AWS: azul marino `#232F3E` + naranja `#FF9900` + azul `#146EB4`.
+- Cabeceras de tabla con texto blanco, **filas alternas** (banding), **bordes finos**,
+  **formato moneda** `$#,##0.00`, KPI de total destacado y subtotales en dorado.
+- **Color fijo por servicio**: cada servicio tiene un color asignado **por su nombre**
+  (no por posición), tanto en la cabecera de su hoja como en el **color de la pestaña**.
+  Así el color de cada servicio **no cambia de un mes a otro** aunque varíe el ranking de gasto.
+- Si aparece un servicio nuevo sin color asignado, se le da un color **determinista por
+  hash del nombre** (estable en todas las ejecuciones).
+
+### 💻 Uso
+
+```bash
+# Mes pasado (ejecútalo desde la carpeta scripts/)
+python aws_cost_report_por_servicio.py --mes 6 --anio 2026 --output junio_2026.xlsx
+
+# Con descuento de partner (5% por defecto)
+python aws_cost_report_por_servicio.py --mes 6 --anio 2026 --partner
+
+# Menos hojas: sube el umbral para agrupar más servicios en "Otros"
+python aws_cost_report_por_servicio.py --mes 6 --anio 2026 --umbral-hoja 50
+```
+
+### Parámetros adicionales
+
+Además de `--mes`, `--anio`, `--output`, `--profile` y `--region`:
+
+| Parámetro | Descripción | Por defecto |
+|-----------|-------------|-------------|
+| `--umbral-hoja` | Coste mínimo (US$) para que un servicio tenga hoja propia; por debajo va a "Otros" | `20.0` |
+| `--partner` | Aplica descuento de partner sobre el total (en la hoja Resumen) | desactivado |
+| `--descuento` | Porcentaje de descuento de partner | `5.0` |
+
+> ℹ️ Este script se ejecuta desde `scripts/` porque importa funciones de `aws_cost_report.py`.
 
 ---
 
